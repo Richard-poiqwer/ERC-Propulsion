@@ -229,6 +229,9 @@ class ODriveRosNode(Node):
         self.cmd_sub = self.create_subscription(Float64MultiArray, cmd_topic, self.cmd_callback, 10)
         self.pos_cmd_sub = self.create_subscription(Float64MultiArray, pos_cmd_topic, self.pos_cmd_callback, 10)
         self.estop_sub = self.create_subscription(Bool, '/estop', self.estop_callback, 10)
+        # incremental move topic: publish a Float64MultiArray of delta radians per-motor
+        # positive = forward (increase position), negative = backward
+        self.move_inc_sub = self.create_subscription(Float64MultiArray, '/wheel_move_incremental', self.move_incremental_callback, 10)
         self.mode_srv = self.create_service(SetBool, '/set_position_mode', self.set_position_mode_srv)
 
         self._cmd_lock = threading.Lock()
@@ -329,6 +332,75 @@ class ODriveRosNode(Node):
         response.success = ok
         response.message = 'position_mode=' + str(enable) + ('; ' + msg if msg else '')
         return response
+
+    def move_incremental_callback(self, msg: Float64MultiArray):
+        """Apply an incremental position move to each motor.
+
+        The message contains delta radians per motor. For each motor we will:
+        - If the ODrive controller exposes a move_incremental method, call it with delta in revolutions.
+        - Otherwise compute and set a new input_pos value taking into account circular_setpoints.
+        This is intended for small incremental steps (e.g. wheel ticks or small continuous rotations).
+        """
+        data = list(msg.data)
+        for i in range(min(len(data), len(self.motors))):
+            delta_rad = float(data[i])
+            m = self.motors[i]
+            if not m.available:
+                try:
+                    m._connect()
+                except Exception:
+                    continue
+
+            try:
+                delta_revs = delta_rad / (2.0 * math.pi)
+
+                # Prefer a native move_incremental if provided by the firmware binding
+                moved = False
+                try:
+                    controller = getattr(m.axis, 'controller', None)
+                    if controller is not None and hasattr(controller, 'move_incremental'):
+                        # some ODrive bindings expect revolutions as argument
+                        controller.move_incremental(delta_revs)
+                        moved = True
+                except Exception:
+                    moved = False
+
+                if not moved:
+                    # fallback: read current encoder position and set a new input_pos
+                    try:
+                        circ = bool(getattr(m.axis.controller.config, 'circular_setpoints', False))
+                    except Exception:
+                        circ = False
+
+                    # read current position in revolutions
+                    cur_pos = None
+                    try:
+                        if circ:
+                            cur_pos = getattr(m.axis.encoder, 'pos_circular', None)
+                        else:
+                            cur_pos = getattr(m.axis.encoder, 'pos_estimate', None)
+                    except Exception:
+                        cur_pos = None
+
+                    if cur_pos is None:
+                        # if we don't have encoder feedback, skip
+                        self.get_logger().warn(f"Motor {i}: can't perform incremental move - no encoder feedback")
+                        continue
+
+                    try:
+                        cur_revs = float(cur_pos)
+                    except Exception:
+                        cur_revs = 0.0
+
+                    new_revs = cur_revs + delta_revs
+                    if circ:
+                        # keep only fractional part for circular setpoints
+                        frac = new_revs % 1.0
+                        m.axis.controller.input_pos = float(frac)
+                    else:
+                        m.axis.controller.input_pos = float(new_revs)
+            except Exception as e:
+                self.get_logger().warn(f'Incremental move failed for motor {i}: {e}')
 
     def _update(self):
         with self._cmd_lock:
