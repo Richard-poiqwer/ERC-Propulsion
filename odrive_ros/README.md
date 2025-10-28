@@ -12,8 +12,7 @@ Features
 - Emergency stop via `/estop` (std_msgs/Bool)
 
 Dependencies
-- ROS 2 (Foxy/Galactic/Humble/etc. — match your ROS 2 distro)
-- Python `odrive` library (tested with v0.5.6)
+- ROS 2 (Jazzy)
 - `rclpy`, `robot_state_publisher`, `sensor_msgs`, `std_msgs`, `std_srvs`
 
 Quick development run (no ROS packaging)
