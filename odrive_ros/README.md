@@ -26,7 +26,7 @@ Recommended ROS 2 usage
 1) Put the `odrive_ros` folder into a ROS 2 workspace (src/).
 2) Install Python deps (example):
 ```bash
-pip install odrive==0.5.6
+pip install odrive
 ```
 3) Build and source the workspace:
 ```bash
@@ -80,14 +80,3 @@ RViz visualization
 1) Ensure the `urdf/rover.urdf` is installed or robot_description parameter is provided (the launch does this).
 2) Run `ros2 launch odrive_ros odrive_launch.py`.
 3) Open RViz, add a TF and RobotModel display to see wheel rotations from `/joint_states`.
-
-Safety notes and tuning checklist
-- Position mode requires properly calibrated/homed encoders on the ODrive.
-- Start with conservative `trap_traj` limits and `accel` values.
-- Use an isolated/power-limited bench PSU when testing motion.
-
-Next steps / optional additions
-- Add a small simulator node that publishes fake `/joint_states` so you can validate RViz without hardware.
-- Provide a C++ `ros2_control` `SystemInterface` wrapper for production/higher-performance control.
-
-If you want, I can now run a local packaging/build check or add a simple simulator node to the repo.
