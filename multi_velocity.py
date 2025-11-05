@@ -8,9 +8,9 @@ import time
 # will hang if it can't find one
 serial_numbers = [
     "3471346D3034", # i
-    # "348B34663034", # ii
-    # "346A34583034", # iii
-    # "346E34613034", # iv
+    "348B34663034", # ii
+    "346A34583034", # iii
+    "346E34613034", # iv
 ]
 
 drives = []

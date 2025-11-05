@@ -13,6 +13,7 @@ Contents (selected)
 
 Prerequisites
 - ODrive v3.6 (and derivatives) with firmware version 0.5.6, others not supported
+- Update using STM32CubeProgrammer. Hold BOOT then press RESET, then connect over USB
 - ODrive package: `pip install odrive` (currently using version 0.6.10.post0)
 
 Quick start (non-ROS, development)
