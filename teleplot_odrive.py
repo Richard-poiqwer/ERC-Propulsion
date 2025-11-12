@@ -22,7 +22,12 @@ import argparse
 import odrive
 from odrive.enums import AxisState
 
-
+serial_numbers = [
+    "3471346D3034", # i
+    "348B34663034", # ii
+    "346A34583034", # iii
+    "346E34613034", # iv
+]
 
 def send_telemetry(sock, addr, name, value):
     now = int(time.time() * 1000)
@@ -87,7 +92,7 @@ def sample_and_send(drives, sock, addr, tick=0):
         send_telemetry(sock, addr, f"drive{i}_actual_vel", round(actual, 4))
         send_telemetry(sock, addr, f"drive{i}_bus_current", round(bus_current, 4))
         send_telemetry(sock, addr, f"drive{i}_motor_current", round(motor_current, 4))
-        send_telemetry(sock, addr, f"drive{i}_v_current_int_d", round(v_int_d, 6))
+        # send_telemetry(sock, addr, f"drive{i}_v_current_int_d", round(v_int_d, 6))
         send_telemetry(sock, addr, f"drive{i}_v_current_int_q", round(v_int_q, 6))
         send_telemetry(sock, addr, f"drive{i}_bus_voltage", round(bus_voltage, 4))
         send_telemetry(sock, addr, f"drive{i}_electrical_power", round(electrical_power, 4))
@@ -98,8 +103,7 @@ def main():
     parser = argparse.ArgumentParser(description="Send ODrive telemetry to teleplot UDP server at 10 Hz.")
     parser.add_argument("--addr", default="127.0.0.1:47269",
                         help="teleplot UDP address HOST:PORT (default 127.0.0.1:47269)")
-    parser.add_argument("--serial", nargs="*",
-                        help="optional serial numbers to find (space separated)")
+
     args = parser.parse_args()
 
     host, port = args.addr.split(":")
@@ -113,7 +117,7 @@ def main():
         raise SystemExit("ODrive python library not available. Install the `odrive` package and try again.")
 
     print("Looking for ODrive drives...")
-    drives = find_drives(args.serial)
+    drives = find_drives(serial_numbers)
     if len(drives) == 0:
         raise SystemExit("No ODrive drives found. Connect hardware or provide serial numbers.")
 
