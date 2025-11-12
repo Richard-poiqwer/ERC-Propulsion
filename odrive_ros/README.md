@@ -35,7 +35,11 @@ source install/setup.bash
 ```
 4) Launch with the provided launch file:
 ```bash
+# Full-featured launch (original):
 ros2 launch odrive_ros odrive_launch.py
+
+# Minimal development/test launch (executes the minimal node script directly):
+ros2 launch odrive_ros simple_odrive_launch.py
 ```
 
 Launch-time parameter overrides
