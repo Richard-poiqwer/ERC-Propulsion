@@ -29,10 +29,10 @@ def main():
     parser.add_argument('--host', default='127.0.0.1')
     parser.add_argument('--port', type=int, default=9000)
     parser.add_argument('--left-axis', type=int, default=1, help='Axis index for left stick vertical')
-    parser.add_argument('--right-axis', type=int, default=4, help='Axis index for right stick vertical')
-    parser.add_argument('--trigger-mode', choices=['buttons','axes'], default='buttons')
-    parser.add_argument('--lt', type=int, default=6, help='Left trigger button or axis index')
-    parser.add_argument('--rt', type=int, default=7, help='Right trigger button or axis index')
+    parser.add_argument('--right-axis', type=int, default=3, help='Axis index for right stick vertical')
+    parser.add_argument('--trigger-mode', choices=['buttons','axes'], default='axes')
+    parser.add_argument('--lt', type=int, default=4, help='Left trigger button or axis index')
+    parser.add_argument('--rt', type=int, default=5, help='Right trigger button or axis index')
     parser.add_argument('--axis-threshold', type=float, default=0.5, help='Axis threshold for triggers when using axes mode')
     parser.add_argument('--scale', type=float, default=3.5, help='Scale factor to convert stick (-1..1) to rev/s')
     parser.add_argument('--rate', type=float, default=20.0, help='Send rate (Hz)')
@@ -73,6 +73,23 @@ def main():
                 ry = joy.get_axis(args.right_axis)
             except Exception:
                 ry = 0.0
+
+            # --- NEW: print live joystick values (axes and buttons) in-place ---
+            try:
+                axes = [round(joy.get_axis(i), 3) for i in range(joy.get_numaxes())]
+            except Exception:
+                axes = []
+            try:
+                buttons = [int(joy.get_button(i)) for i in range(joy.get_numbuttons())]
+            except Exception:
+                buttons = []
+            # write a single updating line (carriage return) and flush
+            # try:
+            #     sys.stdout.write(f'\rAxes: {axes}  Buttons: {buttons}    ')
+            #     sys.stdout.flush()
+            # except Exception:
+            #     pass
+            # --- end new code ---
 
             # invert so that up => positive speed
             left_speed = -float(ly) * args.scale
