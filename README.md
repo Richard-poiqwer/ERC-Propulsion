@@ -42,11 +42,13 @@ incremental moves. For ROS-specific usage, parameter details and launch examples
 see: `odrive_ros/README.md` 
 
 ## Links and documentation
-- [ODrive firmware v0.5.6 docs (NOT LATEST!)](https://docs.odriverobotics.com/v/0.5.6/)
+- [ODrive firmware v0.5.6 docs (DON'T USE LATEST!)](https://docs.odriverobotics.com/v/0.5.6/)
 - [Hoverboard setup (follow for new motors!)](https://docs.odriverobotics.com/v/0.5.6/hoverboard.html)
 - [API Documentation](https://docs.odriverobotics.com/v/0.5.6/fibre_types/com_odriverobotics_ODrive.html)
+- [Tuning Guide](https://docs.odriverobotics.com/v/0.5.6/control.html )
 
 ## Safety and tuning notes
+
 - Use `odrivetool` to limit currents, voltages and speeds; sensible limits are
 	already stored in `config.json`.
 - Important limits to consider:
