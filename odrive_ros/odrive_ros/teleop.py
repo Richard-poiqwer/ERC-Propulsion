@@ -6,7 +6,7 @@ from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.qos import qos_profile_sensor_data
 
 import odrive
-from odrive.enums import AxisState
+from odrive.enums import AxisState, InputMode
 
 from std_msgs.msg import Bool
 from sensor_msgs.msg import Joy
@@ -47,7 +47,7 @@ class DriveMapping:
 
 # REQUIRES BASE_PING NODE TO OPERATE MANUALLY 
 class TelepresenceOperations(Node):
-    def __init__(self, scale=3.5):
+    def __init__(self, scale=3.5, ramp_rate=3.0):
         super().__init__("teleop")
 
         self.mappings = []
@@ -57,7 +57,11 @@ class TelepresenceOperations(Node):
             polarity = e['polarity']
             self.mappings.append(DriveMapping(serial, side, polarity))
 
-        self.find_drives(self.mappings)
+        self.find_drives(self.mappings)#
+
+        for item in self.mappings:
+            item.drive.axis0.controller.config.input_mode = InputMode.VEL_RAMP
+            item.drive.axis0.controller.config.vel_ramp_rate = ramp_rate
 
         node_cb_group = MutuallyExclusiveCallbackGroup()
         connection_cb_group = MutuallyExclusiveCallbackGroup()
@@ -82,7 +86,7 @@ class TelepresenceOperations(Node):
         )
         # Publishers
         self.state_still_pub_ = self.create_publisher(
-            Bool, "/elysium/still", qos_profile=stillQoS
+            Bool, "/gorgon/still", qos_profile=stillQoS
         )
 
          # State -
