@@ -10,6 +10,7 @@ from odrive.enums import AxisState, InputMode
 
 from std_msgs.msg import Bool
 from sensor_msgs.msg import Joy
+from geometry_msgs.msg import Twist
 
 from odrive_ros.config.mappings import AXES
 from odrive_ros.config.network import baseQoS, stillQoS
@@ -43,6 +44,13 @@ class DriveMapping:
             self.drive.axis0.controller.input_vel = v
         except Exception as e:
             print(f"Failed to set velocity on {self.serial}: {e}")
+    
+    @property
+    def speed(self):
+        if self.drive is None:
+            return
+
+        return float(self.drive.axis0.encoder.vel_estimate) * self.polarity      
 
 
 # REQUIRES BASE_PING NODE TO OPERATE MANUALLY 
@@ -89,6 +97,10 @@ class TelepresenceOperations(Node):
             Bool, "/gorgon/still", qos_profile=stillQoS
         )
 
+        self.velocity_pub_ = self.create_publisher(
+                Twist, "/wheel_vel", qos_profile=qos_profile_sensor_data
+        )
+
          # State -
         self.state = twist(0, 0)
         self.target = twist(0, 0)
@@ -99,11 +111,16 @@ class TelepresenceOperations(Node):
         self.last_connection_ = time.monotonic()
         self.connection_timer_ = self.create_timer(0.5, self.shutdownCB_, node_cb_group)
         self.driver_timer_ = self.create_timer(0.02, self.driveCB_, node_cb_group)
+        self.vel_timer_ = self.create_timer(0.1, self.velCB_, node_cb_group)
 
         # Servo Offset control
         # Temporary Variable
         OFFSET = 0
         self.offset_ = OFFSET
+        # Temporary Seperation
+        self.wheel_seperation_ = 0.4
+
+        # wheel_seperation, scale and ramp_rate should all be ros params
 
     # -------------
 
@@ -156,6 +173,33 @@ class TelepresenceOperations(Node):
         # self.get_logger().info(
         #     "left_side: " + str(left_side) + " right_side: " + str(right_side)
         # )
+
+
+    def velCB_(self):
+        linear_vel, angular_vel = self.current_twist()
+        msg = Twist()
+        msg.linear.y = linear_vel
+        msg.angular.z = angular_vel
+
+        self.velocity_pub_.publish(msg)
+       
+
+    def current_twist(self):
+        linear_vel = 0.0
+        angular_vel = 0.0
+        for drive in self.mappings:
+            wheel_speed = drive.speed 
+            linear_vel += wheel_speed
+            if drive.side == "left":
+                angular_vel -= wheel_speed
+            elif drive.side == "right":
+                angular_vel += wheel_speed
+
+        linear_vel /= 4
+        angular_vel /= 2 * self.wheel_seperation_
+
+        return [linear_vel, angular_vel]
+
 
     @staticmethod
     def find_drives(mappings: List[DriveMapping]):
