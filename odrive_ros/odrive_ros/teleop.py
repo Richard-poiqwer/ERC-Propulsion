@@ -8,17 +8,19 @@ from rclpy.qos import qos_profile_sensor_data
 import odrive
 from odrive.enums import AxisState, InputMode
 
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, Float32MultiArray, Header
 from sensor_msgs.msg import Joy
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, TwistWithCovariance, Vector3
+from nav_msgs.msg import Odometry
 
 from odrive_ros.config.mappings import AXES
-from odrive_ros.config.network import baseQoS, stillQoS
+from odrive_ros.config.network import baseQoS
 from odrive_ros.config.serial import drives
 
 import time
 from dataclasses import dataclass
 from typing import List
+import numpy as np
 
 @dataclass
 class twist:
@@ -27,11 +29,12 @@ class twist:
 
 
 class DriveMapping:
-    def __init__(self, serial: str, side: str, polarity: int):
+    def __init__(self, serial: str, side: str, polarity: int, wheel_radius: float):
         self.serial = serial
         self.side = side.lower()
         self.polarity = int(polarity)
         self.drive = None
+        self.wheel_radius = wheel_radius
 
     def apply_speed(self, left: float, right: float):
         if self.drive is None:
@@ -49,33 +52,59 @@ class DriveMapping:
     def speed(self):
         if self.drive is None:
             return
+        # convert from turn/s to rads/s, then multiply by wheel_radius to return in m/s
+        return float(2 * np.pi * self.drive.axis0.encoder.vel_estimate * self.polarity * self.wheel_radius) 
 
-        return float(self.drive.axis0.encoder.vel_estimate) * self.polarity      
 
-
-# REQUIRES BASE_PING NODE TO OPERATE MANUALLY 
 class TelepresenceOperations(Node):
-    def __init__(self, scale=3.5, ramp_rate=3.0):
+    def __init__(self):
         super().__init__("teleop")
+
+        self.declare_parameter("speed", 1.0) # float
+        self.declare_parameter("ramp_rate", 1.0) # float
+        self.declare_parameter("wheel_seperation", 0.4) # float
+        self.declare_parameter("wheel_radius", 0.2) # float
+
+        """
+        PYRIGHT COMPLAINS: It seems function description is written incorrectly in the source. 
+        self.declare_parameters(
+                namespace="", 
+                parameters=[("speed", 1.0), # float
+                            ("ramp_rate", 1.0),  ("wheel_seperation", 0.4)]
+            )
+        """
+
+        # Scale factor to convert stick (-1...1) to rev/s
+        self.scale = self.get_parameter("speed").value
+        
+        # Set Wheel seperation for Odometry
+        self.wheel_seperation_ = self.get_parameter("wheel_seperation").value
+
 
         self.mappings = []
         for e in drives:
             serial = e['serial']
             side = e['side']
             polarity = e['polarity']
-            self.mappings.append(DriveMapping(serial, side, polarity))
+            self.mappings.append(
+                    DriveMapping(
+                        serial,
+                        side, 
+                        polarity, 
+                        self.get_parameter("wheel_radius").value # pyright: ignore
+                        )
+                    ) 
 
-        self.find_drives(self.mappings)#
-
-        for item in self.mappings:
-            item.drive.axis0.controller.config.input_mode = InputMode.VEL_RAMP
-            item.drive.axis0.controller.config.vel_ramp_rate = ramp_rate
+        self.find_drives(self.mappings)
+    
+        # Set Acceleration
+        for d in self.mappings:
+            d.drive.axis0.controller.config.input_mode = InputMode.VEL_RAMP
+            d.drive.axis0.controller.config.vel_ramp_rate = self.get_parameter("ramp_rate").value
 
         node_cb_group = MutuallyExclusiveCallbackGroup()
         connection_cb_group = MutuallyExclusiveCallbackGroup()
         
-        # Scale factor to convert stick (-1...1) to rev/s
-        self.scale = scale
 
         # Topics
         self.controller_commands_sub_ = self.create_subscription(
@@ -93,12 +122,8 @@ class TelepresenceOperations(Node):
             callback_group=connection_cb_group,
         )
         # Publishers
-        self.state_still_pub_ = self.create_publisher(
-            Bool, "/gorgon/still", qos_profile=stillQoS
-        )
-
-        self.velocity_pub_ = self.create_publisher(
-                Twist, "/wheel_vel", qos_profile=qos_profile_sensor_data
+        self.encoder_odom_pub_ = self.create_publisher(
+                Odometry, "/gorgon/encoder/odom", qos_profile=qos_profile_sensor_data
         )
 
          # State -
@@ -111,16 +136,7 @@ class TelepresenceOperations(Node):
         self.last_connection_ = time.monotonic()
         self.connection_timer_ = self.create_timer(0.5, self.shutdownCB_, node_cb_group)
         self.driver_timer_ = self.create_timer(0.02, self.driveCB_, node_cb_group)
-        self.vel_timer_ = self.create_timer(0.1, self.velCB_, node_cb_group)
-
-        # Servo Offset control
-        # Temporary Variable
-        OFFSET = 0
-        self.offset_ = OFFSET
-        # Temporary Seperation
-        self.wheel_seperation_ = 0.4
-
-        # wheel_seperation, scale and ramp_rate should all be ros params
+        self.odom_timer_ = self.create_timer(0.05, self.odomCB_, node_cb_group)
 
     # -------------
 
@@ -144,28 +160,13 @@ class TelepresenceOperations(Node):
         # should be halved.
         self.target.linear /= 2
         self.target.rotation = msg.axes[AXES["LEFTX"]]
-        # ------------------------
-
-        state = Bool()
-        if (
-            self.target.linear == 0
-            and self.target.rotation != 0
-            and not self.stationary
-        ):
-            self.stationary = True
-            state.data = True
-            self.state_still_pub_.publish(state)
-        elif self.target.linear != 0 and self.stationary:
-            self.stationary = False
-            state.data = False
-            self.state_still_pub_.publish(state)
 
     def driveCB_(self):
         self.drive()
     
     def drive(self):
-        right_side = self.bound_range(self.target.linear + 0.5 * self.target.rotation) * self.scale
-        left_side = self.bound_range(self.target.linear - 0.5 * self.target.rotation) * self.scale
+        right_side = self.bound_range(self.target.linear + 0.5 * self.target.rotation) * self.scale # pyright: ignore
+        left_side = self.bound_range(self.target.linear - 0.5 * self.target.rotation) * self.scale # pyright: ignore
 
         for m in self.mappings:
             m.apply_speed(left_side, right_side)
@@ -175,13 +176,48 @@ class TelepresenceOperations(Node):
         # )
 
 
-    def velCB_(self):
+    def odomCB_(self):
         linear_vel, angular_vel = self.current_twist()
-        msg = Twist()
-        msg.linear.y = linear_vel
-        msg.angular.z = angular_vel
 
-        self.velocity_pub_.publish(msg)
+        # Place Holder Before Measuring Covariances
+        cov_matrix = np.diag([
+            0.1, # variance of x
+            0.0, # variance of y
+            0.0, # variance of z
+            0.0, # variance of roll
+            0.0, # variance of pitch
+            0.1  # variance of yaw
+        ])
+
+        covariance = cov_matrix.flatten().tolist()
+
+        odom_msg = Odometry(
+            header=Header(
+                stamp=self.get_clock().now().to_msg(),
+                frame_id="encoder_odom",
+            ),
+            child_frame_id="base_link",
+            twist=TwistWithCovariance(
+                twist=Twist(
+                    linear=Vector3(
+                        x=float(linear_vel),
+                        y=float(0),
+                        z=float(0),
+                    ),
+                    angular=Vector3(
+                        x=float(0),
+                        y=float(0),
+                        z=float(angular_vel)
+                    )
+                ),
+                covariance=Float32MultiArray(
+                    data=covariance
+                )
+            ),
+        )
+
+        self.encoder_odom_pub_.publish(odom_msg)
+
        
 
     def current_twist(self):
@@ -196,7 +232,9 @@ class TelepresenceOperations(Node):
                 angular_vel += wheel_speed
 
         linear_vel /= 4
-        angular_vel /= 2 * self.wheel_seperation_
+        # Multiplied by 2, as double counting wheels, divided by 2, as radius of 
+        # rotation is half of the diameter of rotation (Conver to radians, sucessfully)
+        angular_vel /= self.wheel_seperation_ # pyright: ignore
 
         return [linear_vel, angular_vel]
 
