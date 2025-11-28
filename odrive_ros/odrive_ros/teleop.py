@@ -8,7 +8,7 @@ from rclpy.qos import qos_profile_sensor_data
 import odrive
 from odrive.enums import AxisState, InputMode
 
-from std_msgs.msg import Bool, Float32MultiArray, Header
+from std_msgs.msg import Bool, Header
 from sensor_msgs.msg import Joy
 from geometry_msgs.msg import Twist, TwistWithCovariance, Vector3
 from nav_msgs.msg import Odometry
@@ -179,18 +179,6 @@ class TelepresenceOperations(Node):
     def odomCB_(self):
         linear_vel, angular_vel = self.current_twist()
 
-        # Place Holder Before Measuring Covariances
-        cov_matrix = np.diag([
-            0.1, # variance of x
-            0.0, # variance of y
-            0.0, # variance of z
-            0.0, # variance of roll
-            0.0, # variance of pitch
-            0.1  # variance of yaw
-        ])
-
-        covariance = cov_matrix.flatten().tolist()
-
         odom_msg = Odometry(
             header=Header(
                 stamp=self.get_clock().now().to_msg(),
@@ -210,11 +198,20 @@ class TelepresenceOperations(Node):
                         z=float(angular_vel)
                     )
                 ),
-                covariance=Float32MultiArray(
-                    data=covariance
-                )
             ),
         )
+    
+        # Estimated Covariance Matrix, pre-measurement
+        cov_matrix = [
+            0.1, 0.0, 0.0, 0.0, 0.0, 1.0, # linear_x
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, # linear_y
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, # linear_z
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, # angular_x
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, # angular_y
+            1.0, 0.0, 0.0, 0.0, 0.0, 0.5, # angular_z
+        ]
+        odom_msg.twist.covariance = cov_matrix
+
 
         self.encoder_odom_pub_.publish(odom_msg)
 
