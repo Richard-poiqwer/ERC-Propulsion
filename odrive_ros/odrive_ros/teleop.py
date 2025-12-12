@@ -201,7 +201,7 @@ class TelepresenceOperations(Node):
         odom_msg = Odometry(
             header=Header(
                 stamp=self.get_clock().now().to_msg(),
-                frame_id="encoder_odom",
+                frame_id="odom_frame",
             ),
             child_frame_id="base_frame",
             twist=TwistWithCovariance(
