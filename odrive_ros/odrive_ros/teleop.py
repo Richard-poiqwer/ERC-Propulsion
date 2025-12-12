@@ -203,7 +203,7 @@ class TelepresenceOperations(Node):
                 stamp=self.get_clock().now().to_msg(),
                 frame_id="encoder_odom",
             ),
-            child_frame_id="base_link",
+            child_frame_id="base_frame",
             twist=TwistWithCovariance(
                 twist=Twist(
                     linear=Vector3(
