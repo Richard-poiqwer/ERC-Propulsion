@@ -1,5 +1,6 @@
 import rclpy
 from rclpy.node import Node
+from rclpy.parameter import get_parameter_value
 import rclpy.utilities
 import rclpy.executors
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -29,12 +30,21 @@ class twist:
 
 
 class DriveMapping:
-    def __init__(self, serial: str, side: str, polarity: int, wheel_radius: float):
+    def __init__(
+            self, 
+            serial: str, 
+            side: str, 
+            polarity: int, 
+            wheel_radius: float, 
+            wheel_radius_uncertainty: float
+            ):
+
         self.serial = serial
         self.side = side.lower()
         self.polarity = int(polarity)
         self.drive = None
         self.wheel_radius = wheel_radius
+        self.wheel_radius_uncertainty = wheel_radius_uncertainty
 
     def apply_speed(self, left: float, right: float):
         if self.drive is None:
@@ -54,6 +64,12 @@ class DriveMapping:
             return
         # convert from turn/s to rads/s, then multiply by wheel_radius to return in m/s
         return float(2 * np.pi * self.drive.axis0.encoder.vel_estimate * self.polarity * self.wheel_radius) 
+    
+    @property
+    def variance(self):
+        if self.drive is None:
+            return 
+        return float(2 * np.pi * self.drive.axis0.encoder.vel_estimate * self.wheel_radius_uncertainty) ** 2 # pyright: ignore
 
 
 class TelepresenceOperations(Node):
@@ -63,7 +79,9 @@ class TelepresenceOperations(Node):
         self.declare_parameter("speed", 1.0) # float
         self.declare_parameter("ramp_rate", 1.0) # float
         self.declare_parameter("wheel_seperation", 0.4) # float
-        self.declare_parameter("wheel_radius", 0.2) # float
+        # 8cm from measurement, 1cm uncertainty
+        self.declare_parameter("wheel_radius", 0.08) # float
+        self.declare_parameter("wheel_radius_uncertainty", 0.01)
 
         """
         PYRIGHT COMPLAINS: It seems function description is written incorrectly in the source. 
@@ -91,7 +109,8 @@ class TelepresenceOperations(Node):
                         serial,
                         side, 
                         polarity, 
-                        self.get_parameter("wheel_radius").value # pyright: ignore
+                        self.get_parameter("wheel_radius").value, # pyright: ignore
+                        self.get_parameter("wheel_radius_uncertainty").value, # pyright: ignore
                         )
                     ) 
 
@@ -177,7 +196,7 @@ class TelepresenceOperations(Node):
 
 
     def odomCB_(self):
-        linear_vel, angular_vel = self.current_twist()
+        linear_vel, angular_vel, linear_var = self.current_twist_variance()
 
         odom_msg = Odometry(
             header=Header(
@@ -203,12 +222,12 @@ class TelepresenceOperations(Node):
     
         # Estimated Covariance Matrix, pre-measurement
         cov_matrix = [
-            0.1, 0.0, 0.0, 0.0, 0.0, 1.0, # linear_x
+            linear_var, 0.0, 0.0, 0.0, 0.0, linear_var + 0.1, # linear_x
             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, # linear_y
             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, # linear_z
             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, # angular_x
             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, # angular_y
-            1.0, 0.0, 0.0, 0.0, 0.0, 0.5, # angular_z
+            linear_var + 0.1, 0.0, 0.0, 0.0, 0.0, linear_var + 0.2, # angular_z
         ]
         odom_msg.twist.covariance = cov_matrix
 
@@ -217,9 +236,10 @@ class TelepresenceOperations(Node):
 
        
 
-    def current_twist(self):
+    def current_twist_variance(self):
         linear_vel = 0.0
         angular_vel = 0.0
+        variance = 0.0
         for drive in self.mappings:
             wheel_speed = drive.speed 
             linear_vel += wheel_speed
@@ -228,12 +248,15 @@ class TelepresenceOperations(Node):
             elif drive.side == "right":
                 angular_vel += wheel_speed
 
+            variance += drive.variance
+
         linear_vel /= 4
         # Multiplied by 2, as double counting wheels, divided by 2, as radius of 
         # rotation is half of the diameter of rotation (Conver to radians, sucessfully)
-        angular_vel /= self.wheel_seperation_ # pyright: ignore
+        angular_vel /= self.wheel_seperation_ # pyright: ignore       
+        variance /= 4
 
-        return [linear_vel, angular_vel]
+        return [linear_vel, angular_vel, variance]
 
 
     @staticmethod
