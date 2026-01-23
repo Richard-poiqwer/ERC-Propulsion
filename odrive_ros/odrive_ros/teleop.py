@@ -236,7 +236,7 @@ class TelepresenceOperations(Node):
 
        
 
-    def current_twist_variance(self):
+    def current_twist_variance_original(self):
         linear_vel = 0.0
         angular_vel = 0.0
         variance = 0.0
@@ -254,6 +254,33 @@ class TelepresenceOperations(Node):
         # Multiplied by 2, as double counting wheels, divided by 2, as radius of 
         # rotation is half of the diameter of rotation (Conver to radians, sucessfully)
         angular_vel /= self.wheel_seperation_ # pyright: ignore       
+        variance /= 4
+
+        return [linear_vel, angular_vel, variance]
+
+
+
+    def current_twist_variance(self):
+        linear_vel = 0.0
+        angular_vel = 0.0
+        variance = 0.0
+        for drive in self.mappings:
+            wheel_speed = drive.speed 
+            linear_vel += wheel_speed
+            if drive.side == "left":
+                angular_vel -= wheel_speed
+            elif drive.side == "right":
+                angular_vel += wheel_speed
+
+            variance += drive.variance
+
+        linear_vel /= 4
+        # Multiplied by 2, as double counting wheels, divided by 2, as radius of 
+        # rotation is half of the diameter of rotation (Conver to radians, sucessfully)
+        angular_vel /= self.wheel_seperation_ # pyright: ignore   
+        # FIX DUE TO AWFUL SKID STEERING
+        if abs(angular_vel) > 0.6:
+            linear_vel = 0
         variance /= 4
 
         return [linear_vel, angular_vel, variance]
