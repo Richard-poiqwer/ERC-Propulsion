@@ -10,7 +10,6 @@ import odrive
 from odrive.enums import AxisState, InputMode
 
 from std_msgs.msg import Bool, Header
-from sensor_msgs.msg import Joy
 from geometry_msgs.msg import Twist, TwistWithCovariance, Vector3
 from nav_msgs.msg import Odometry
 
@@ -126,10 +125,10 @@ class TelepresenceOperations(Node):
         
 
         # Topics
-        self.controller_commands_sub_ = self.create_subscription(
-            Joy,
-            "/joy",
-            self.teleopCB_,
+        self.pubtwist = self.create_subscription(
+            Twist,
+            "/cmd_vel",
+            self.target_set,
             qos_profile=qos_profile_sensor_data,
             callback_group=node_cb_group,
         )
@@ -169,17 +168,11 @@ class TelepresenceOperations(Node):
             self.target.rotation = 0
             self.drive()
     
+    def target_set(self, msg: Twist):
+        self.target.linear = 0      # To-Do
+        self.target.rotation = 0    # To-Do
 
-    # def teleopCB_(self, msg: Joy):
-    #     # DRIVE -----------------
-    #     # joystick is inverted from what you would expect
-    #     self.target.linear = -msg.axes[AXES["TRIGGERRIGHT"]]
-    #     self.target.linear += msg.axes[AXES["TRIGGERLEFT"]]
-    #     # goes from 1 to -1, therefore difference between the two
-    #     # should be halved.
-    #     self.target.linear /= 2
-    #     self.target.rotation = msg.axes[AXES["LEFTX"]]
-
+    
     def driveCB_(self):
         self.drive()
     
