@@ -44,7 +44,7 @@ class MissionControl(Node):
         )
         # Publishers
         self.pubtwist = self.create_publisher(
-                Motion, "/cmd_vel", qos_profile=qos_profile_sensor_data
+                Twist, "/cmd_vel", qos_profile=qos_profile_sensor_data
         )
     
 ############################# Functions #############################
@@ -59,8 +59,7 @@ class MissionControl(Node):
         self.target.linear /= 2 
         self.target.rotation = msg.axes[AXES["LEFTX"]] 
 
-        pubtwist_msg = Motion()
-        pubtwist_msg.motion = Twist(
+        pubtwist_msg = Twist(
                     linear=Vector3(
                         x=self.trarget.linear,
                         y=float(0),
