@@ -170,15 +170,15 @@ class TelepresenceOperations(Node):
             self.drive()
     
 
-    def teleopCB_(self, msg: Joy):
-        # DRIVE -----------------
-        # joystick is inverted from what you would expect
-        self.target.linear = -msg.axes[AXES["TRIGGERRIGHT"]]
-        self.target.linear += msg.axes[AXES["TRIGGERLEFT"]]
-        # goes from 1 to -1, therefore difference between the two
-        # should be halved.
-        self.target.linear /= 2
-        self.target.rotation = msg.axes[AXES["LEFTX"]]
+    # def teleopCB_(self, msg: Joy):
+    #     # DRIVE -----------------
+    #     # joystick is inverted from what you would expect
+    #     self.target.linear = -msg.axes[AXES["TRIGGERRIGHT"]]
+    #     self.target.linear += msg.axes[AXES["TRIGGERLEFT"]]
+    #     # goes from 1 to -1, therefore difference between the two
+    #     # should be halved.
+    #     self.target.linear /= 2
+    #     self.target.rotation = msg.axes[AXES["LEFTX"]]
 
     def driveCB_(self):
         self.drive()
