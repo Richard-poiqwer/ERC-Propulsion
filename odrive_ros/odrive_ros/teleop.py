@@ -169,8 +169,8 @@ class TelepresenceOperations(Node):
             self.drive()
     
     def target_set(self, msg: Twist):
-        self.target.linear = 0      # To-Do
-        self.target.rotation = 0    # To-Do
+        self.target.linear = pubtwist_msg.linear.x
+        self.target.rotation = pubtwist_msg.angular.y
 
     
     def driveCB_(self):
