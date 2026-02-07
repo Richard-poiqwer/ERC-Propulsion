@@ -27,6 +27,7 @@ class twist:
     linear: float
     rotation: float
 
+########################### DriveMapping ###########################
 
 class DriveMapping:
     def __init__(
@@ -70,6 +71,7 @@ class DriveMapping:
             return 
         return float(2 * np.pi * self.drive.axis0.encoder.vel_estimate * self.wheel_radius_uncertainty) ** 2 # pyright: ignore
 
+########################### TelepresenceOperations ###########################
 
 class TelepresenceOperations(Node):
     def __init__(self):
@@ -156,8 +158,8 @@ class TelepresenceOperations(Node):
         self.driver_timer_ = self.create_timer(0.02, self.driveCB_, node_cb_group)
         self.odom_timer_ = self.create_timer(0.05, self.odomCB_, node_cb_group)
 
-    # -------------
-
+########################### TeleOp Functions ###########################
+    
     def confirmConnectionCB_(self, msg: Bool):
         self.last_connection_ = time.monotonic()
 
@@ -167,6 +169,7 @@ class TelepresenceOperations(Node):
             self.target.linear = 0
             self.target.rotation = 0
             self.drive()
+
     
     def target_set(self, msg: Twist):
         self.target.linear = pubtwist_msg.linear.x
