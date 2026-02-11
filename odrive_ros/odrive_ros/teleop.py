@@ -1,6 +1,5 @@
 import rclpy
 from rclpy.node import Node
-from rclpy.parameter import get_parameter_value
 import rclpy.utilities
 import rclpy.executors
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -13,7 +12,6 @@ from std_msgs.msg import Bool, Header
 from geometry_msgs.msg import Twist, TwistWithCovariance, Vector3
 from nav_msgs.msg import Odometry
 
-from odrive_ros.config.mappings import AXES
 from odrive_ros.config.network import baseQoS
 from odrive_ros.config.serial import drives
 
@@ -127,19 +125,12 @@ class TelepresenceOperations(Node):
         
 
         # Topics
-        self.pubtwist = self.create_subscription(
+        self.pubtwist_ = self.create_subscription(
             Twist,
             "/cmd_vel",
-            self.target_set,
+            self.target_set_,
             qos_profile=qos_profile_sensor_data,
             callback_group=node_cb_group,
-        )
-        self.base_ping_sub_ = self.create_subscription(
-            Bool,
-            "/ping",
-            self.confirmConnectionCB_,
-            qos_profile=baseQoS,
-            callback_group=connection_cb_group,
         )
         # Publishers
         self.encoder_odom_pub_ = self.create_publisher(
@@ -160,9 +151,6 @@ class TelepresenceOperations(Node):
 
 ########################### TeleOp Functions ###########################
     
-    def confirmConnectionCB_(self, msg: Bool):
-        self.last_connection_ = time.monotonic()
-
     def shutdownCB_(self):
         if time.monotonic() > self.last_connection_ + 1.2:
             self.get_logger().warn("Lost connection, setting movement to zero.")
@@ -171,9 +159,11 @@ class TelepresenceOperations(Node):
             self.drive()
 
     
-    def target_set(self, msg: Twist):
-        self.target.linear = pubtwist_msg.linear.x
-        self.target.rotation = pubtwist_msg.angular.y
+    def target_set_(self, msg: Twist):
+        self.last_connection_ = time.monotonic()
+        
+        self.target.linear = msg.linear.x
+        self.target.rotation = msg.angular.y
 
     
     def driveCB_(self):
