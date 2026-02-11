@@ -30,8 +30,7 @@ class MissionControl(Node):
             Joy,
             "/joy",
             self.teleopCB_,
-            qos_profile=qos_profile_sensor_data,
-            callback_group=MutuallyExclusiveCallbackGroup(), # Mutually exclusive callback vs Multithreaded executors?
+            qos_profile=qos_profile_sensor_data, # Mutually exclusive callback vs Multithreaded executors?
         )
         # Publishers
         self.pubtwist = self.create_publisher(
@@ -53,7 +52,7 @@ class MissionControl(Node):
 
         pubtwist_msg = Twist( # Need to first calculate the actual value from the initialised 1 to -1 values
                     linear=Vector3(
-                        x=self.trarget.linear,
+                        x=self.target.linear,
                         y=float(0),
                         z=float(0),
                     ),
@@ -65,5 +64,3 @@ class MissionControl(Node):
         )
         self.pubtwist.publish(pubtwist_msg)
         self.get_logger().info('Publishing: "%d"' % pubtwist_msg.motion)
-
-
