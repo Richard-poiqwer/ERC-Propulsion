@@ -6,27 +6,18 @@ import rclpy.executors
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.qos import qos_profile_sensor_data
 
-# import odrive
-# from odrive.enums import AxisState, InputMode
-
-#from std_msgs.msg import Bool, Header
-#from sensor_msgs.msg import Joy
+from sensor_msgs.msg import Joy
 from geometry_msgs.msg import Twist, TwistWithCovariance, Vector3
-#from nav_msgs.msg import Odometry
 
 from odrive_ros.config.mappings import AXES
-# from odrive_ros.config.network import baseQoS
-#from odrive_ros.config.serial import drives
 
 import time
 from dataclasses import dataclass
-from typing import List
-import numpy as np
 
-# @dataclass
-# class twist:
-#     linear: float
-#     rotation: float
+@dataclass
+class twist:
+    linear: float
+    rotation: float
 
 ########################### MissionControl ###########################
 
@@ -40,7 +31,7 @@ class MissionControl(Node):
             "/joy",
             self.teleopCB_,
             qos_profile=qos_profile_sensor_data,
-            callback_group=MutuallyExclusiveCallbackGroup(),
+            callback_group=MutuallyExclusiveCallbackGroup(), # Mutually exclusive callback vs Multithreaded executors?
         )
         # Publishers
         self.pubtwist = self.create_publisher(
@@ -51,6 +42,7 @@ class MissionControl(Node):
   
     def teleopCB_(self, msg: Joy): 
         # DRIVE -----------------
+        self.target = twist(0, 0)
         # joystick is inverted from what you would expect
         self.target.linear = -msg.axes[AXES["TRIGGERRIGHT"]] 
         self.target.linear += msg.axes[AXES["TRIGGERLEFT"]] 
@@ -59,7 +51,7 @@ class MissionControl(Node):
         self.target.linear /= 2 
         self.target.rotation = msg.axes[AXES["LEFTX"]] 
 
-        pubtwist_msg = Twist(
+        pubtwist_msg = Twist( # Need to first calculate the actual value from the initialised 1 to -1 values
                     linear=Vector3(
                         x=self.trarget.linear,
                         y=float(0),
