@@ -3,16 +3,16 @@ from rclpy.node import Node
 from rclpy.parameter import get_parameter_value
 import rclpy.utilities
 import rclpy.executors
-from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.qos import qos_profile_sensor_data
 
 from sensor_msgs.msg import Joy
-from geometry_msgs.msg import Twist, TwistWithCovariance, Vector3
+from geometry_msgs.msg import Twist, Vector3
 
 from odrive_ros.config.mappings import AXES
 
 import time
 from dataclasses import dataclass
+import numpy as np
 
 @dataclass
 class twist:
@@ -24,6 +24,13 @@ class twist:
 class MissionControl(Node):
     def __init__(self):
         super().__init__("mission_control")
+
+        self.declare_parameter("speed", 1.0) # float (turn/s)
+        self.declare_parameter("wheel_radius", 0.08) # float
+
+        # Scale factor to convert stick (-1...1) to m/s and rads/s
+        self.speed_max = 2 * np.pi * self.get_parameter("wheel_radius").value * self.get_parameter("speed").value
+        self.angular_speed_max = 2 * np.pi * self.get_parameter("speed").value
 
         # Subscriptions 
         self.controller_commands_sub_ = self.create_subscription(
@@ -50,7 +57,10 @@ class MissionControl(Node):
         self.target.linear /= 2 
         self.target.rotation = msg.axes[AXES["LEFTX"]] 
 
-        pubtwist_msg = Twist( # Need to first calculate the actual value from the initialised 1 to -1 values
+        self.target.linear = self.target.linear * self.speed_max
+        self.target.rotation = self.target.rotation * self.angular_speed_max
+
+        pubtwist_msg = Twist(
                     linear=Vector3(
                         x=self.target.linear,
                         y=float(0),
