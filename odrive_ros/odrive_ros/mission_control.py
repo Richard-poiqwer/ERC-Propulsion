@@ -29,8 +29,8 @@ class MissionControl(Node):
         self.declare_parameter("wheel_radius", 0.08) # float
 
         # Scale factor to convert stick (-1...1) to m/s and rads/s
-        self.speed_max = 2 * np.pi * self.get_parameter("wheel_radius").value * self.get_parameter("speed").value
-        self.angular_speed_max = 2 * np.pi * self.get_parameter("speed").value
+        self.speed_max = self.get_parameter("speed").value
+        self.angular_speed_max = self.get_parameter("speed").value / self.get_parameter("wheel_radius").value
 
         # Subscriptions 
         self.controller_commands_sub_ = self.create_subscription(
