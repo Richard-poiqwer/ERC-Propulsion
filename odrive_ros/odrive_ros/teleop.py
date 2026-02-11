@@ -75,7 +75,7 @@ class TelepresenceOperations(Node):
     def __init__(self):
         super().__init__("teleop")
 
-        self.declare_parameter("speed", 1.0) # float
+        self.declare_parameter("speed", 1.0) # float (turn/s)
         self.declare_parameter("ramp_rate", 1.0) # float
         self.declare_parameter("wheel_seperation", 0.4) # float
         # 8cm from measurement, 1cm uncertainty
@@ -90,10 +90,10 @@ class TelepresenceOperations(Node):
                             ("ramp_rate", 1.0),  ("wheel_seperation", 0.4)]
             )
         """
-
+        
         # Scale factor to convert stick (-1...1) to rev/s
         self.scale = self.get_parameter("speed").value
-        
+
         # Set Wheel seperation for Odometry
         self.wheel_seperation_ = self.get_parameter("wheel_seperation").value
 
@@ -163,16 +163,19 @@ class TelepresenceOperations(Node):
         self.last_connection_ = time.monotonic()
         
         self.target.linear = msg.linear.x
-        self.target.rotation = msg.angular.y
+        self.target.rotation = msg.angular.z
 
     
     def driveCB_(self):
         self.drive()
     
     def drive(self):
-        right_side = self.bound_range(self.target.linear + 0.5 * self.target.rotation) * self.scale # pyright: ignore
-        left_side = self.bound_range(self.target.linear - 0.5 * self.target.rotation) * self.scale # pyright: ignore
+        # self.left_side = self.bound_range(self.target.linear - 0.5 * self.target.rotation) * self.scale # pyright: ignore
+        # self.right_side = self.bound_range(self.target.linear + 0.5 * self.target.rotation) * self.scale # pyright: ignore
 
+        left_side = self.bound_range(self.target.linear - 0.5 * self.target.rotation) * self.scale # pyright: ignore
+        right_side = self.bound_range(self.target.linear + 0.5 * self.target.rotation) * self.scale # pyright: ignore
+        
         for m in self.mappings:
             m.apply_speed(left_side, right_side)
 
@@ -293,7 +296,8 @@ class TelepresenceOperations(Node):
                     d.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
                 except Exception:
                     pass
-
+    
+    
     @staticmethod
     def bound_range(value):
         if value > 1:
