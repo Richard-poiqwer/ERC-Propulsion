@@ -1,6 +1,5 @@
 import rclpy
 from rclpy.node import Node
-from rclpy.parameter import get_parameter_value
 import rclpy.utilities
 import rclpy.executors
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -10,11 +9,9 @@ import odrive
 from odrive.enums import AxisState, InputMode
 
 from std_msgs.msg import Bool, Header
-from sensor_msgs.msg import Joy
 from geometry_msgs.msg import Twist, TwistWithCovariance, Vector3
 from nav_msgs.msg import Odometry
 
-from odrive_ros.config.mappings import AXES
 from odrive_ros.config.network import baseQoS
 from odrive_ros.config.serial import drives
 
@@ -28,6 +25,7 @@ class twist:
     linear: float
     rotation: float
 
+########################### DriveMapping ###########################
 
 class DriveMapping:
     def __init__(
@@ -71,12 +69,13 @@ class DriveMapping:
             return 
         return float(2 * np.pi * self.drive.axis0.encoder.vel_estimate * self.wheel_radius_uncertainty) ** 2 # pyright: ignore
 
+########################### TelepresenceOperations ###########################
 
 class TelepresenceOperations(Node):
     def __init__(self):
         super().__init__("teleop")
 
-        self.declare_parameter("speed", 1.0) # float
+        self.declare_parameter("speed", 1.0) # float (turn/s)
         self.declare_parameter("ramp_rate", 1.0) # float
         self.declare_parameter("wheel_seperation", 0.4) # float
         # 8cm from measurement, 1cm uncertainty
@@ -91,10 +90,10 @@ class TelepresenceOperations(Node):
                             ("ramp_rate", 1.0),  ("wheel_seperation", 0.4)]
             )
         """
-
+        
         # Scale factor to convert stick (-1...1) to rev/s
         self.scale = self.get_parameter("speed").value
-        
+
         # Set Wheel seperation for Odometry
         self.wheel_seperation_ = self.get_parameter("wheel_seperation").value
 
@@ -126,19 +125,12 @@ class TelepresenceOperations(Node):
         
 
         # Topics
-        self.controller_commands_sub_ = self.create_subscription(
-            Joy,
-            "/joy",
-            self.teleopCB_,
+        self.pubtwist_ = self.create_subscription(
+            Twist,
+            "/cmd_vel",
+            self.target_set_,
             qos_profile=qos_profile_sensor_data,
             callback_group=node_cb_group,
-        )
-        self.base_ping_sub_ = self.create_subscription(
-            Bool,
-            "/ping",
-            self.confirmConnectionCB_,
-            qos_profile=baseQoS,
-            callback_group=connection_cb_group,
         )
         # Publishers
         self.encoder_odom_pub_ = self.create_publisher(
@@ -157,36 +149,30 @@ class TelepresenceOperations(Node):
         self.driver_timer_ = self.create_timer(0.02, self.driveCB_, node_cb_group)
         self.odom_timer_ = self.create_timer(0.05, self.odomCB_, node_cb_group)
 
-    # -------------
-
-    def confirmConnectionCB_(self, msg: Bool):
-        self.last_connection_ = time.monotonic()
-
+########################### TeleOp Functions ###########################
+    
     def shutdownCB_(self):
         if time.monotonic() > self.last_connection_ + 1.2:
             self.get_logger().warn("Lost connection, setting movement to zero.")
             self.target.linear = 0
             self.target.rotation = 0
             self.drive()
+
     
+    def target_set_(self, msg: Twist):
+        self.last_connection_ = time.monotonic()
+        
+        self.target.linear = msg.linear.x
+        self.target.rotation = msg.angular.z
 
-    def teleopCB_(self, msg: Joy):
-        # DRIVE -----------------
-        # joystick is inverted from what you would expect
-        self.target.linear = -msg.axes[AXES["TRIGGERRIGHT"]]
-        self.target.linear += msg.axes[AXES["TRIGGERLEFT"]]
-        # goes from 1 to -1, therefore difference between the two
-        # should be halved.
-        self.target.linear /= 2
-        self.target.rotation = msg.axes[AXES["LEFTX"]]
-
+    
     def driveCB_(self):
         self.drive()
     
     def drive(self):
-        right_side = self.bound_range(self.target.linear + 0.5 * self.target.rotation) * self.scale # pyright: ignore
         left_side = self.bound_range(self.target.linear - 0.5 * self.target.rotation) * self.scale # pyright: ignore
-
+        right_side = self.bound_range(self.target.linear + 0.5 * self.target.rotation) * self.scale # pyright: ignore
+        
         for m in self.mappings:
             m.apply_speed(left_side, right_side)
 
@@ -307,7 +293,8 @@ class TelepresenceOperations(Node):
                     d.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
                 except Exception:
                     pass
-
+    
+    
     @staticmethod
     def bound_range(value):
         if value > 1:
