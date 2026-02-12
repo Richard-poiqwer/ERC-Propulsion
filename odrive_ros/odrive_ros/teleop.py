@@ -170,9 +170,6 @@ class TelepresenceOperations(Node):
         self.drive()
     
     def drive(self):
-        # self.left_side = self.bound_range(self.target.linear - 0.5 * self.target.rotation) * self.scale # pyright: ignore
-        # self.right_side = self.bound_range(self.target.linear + 0.5 * self.target.rotation) * self.scale # pyright: ignore
-
         left_side = self.bound_range(self.target.linear - 0.5 * self.target.rotation) * self.scale # pyright: ignore
         right_side = self.bound_range(self.target.linear + 0.5 * self.target.rotation) * self.scale # pyright: ignore
         
