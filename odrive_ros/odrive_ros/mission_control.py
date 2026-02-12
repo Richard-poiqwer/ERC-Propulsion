@@ -1,5 +1,6 @@
 import rclpy
 from rclpy.node import Node
+import rclpy.executors
 from rclpy.qos import qos_profile_sensor_data
 
 from sensor_msgs.msg import Joy
@@ -66,3 +67,20 @@ class MissionControl(Node):
         )
         self.pubtwist.publish(pubtwist_msg)
         self.get_logger().info('Publishing: "%d"' % pubtwist_msg.motion)
+
+
+############################# Main #############################
+
+def main(args=None):
+    rclpy.init(args=args)
+
+    mission = MissionControl()
+    executor = rclpy.executors.MultiThreadedExecutor()
+    executor.add_node(mission)
+    try:
+        executor.spin()
+    except KeyboardInterrupt:
+        tele.get_logger().warn(f"KeyboardInterrupt triggered.")
+    finally:
+        tele.destroy_node()
+        rclpy.utilities.try_shutdown()
