@@ -75,7 +75,7 @@ class TelepresenceOperations(Node):
     def __init__(self):
         super().__init__("teleop")
 
-        self.declare_parameter("speed", 0.6) # float (m/s) // Parameter not directly used
+        self.declare_parameter("speed", 1.2) # float (turns/s) // Parameter not directly used
         self.declare_parameter("ramp_rate", 1.0) # float
         self.declare_parameter("wheel_seperation", 0.4) # float
         # 8cm from measurement, 1cm uncertainty
