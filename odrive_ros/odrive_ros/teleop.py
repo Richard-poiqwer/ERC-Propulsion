@@ -170,8 +170,8 @@ class TelepresenceOperations(Node):
     
     def drive(self):
         # Set vel. bound range, then divide to convert to turns/s
-        left_side = self.bound_range(self.target.linear - 0.5*self.target.rotation*self.wheel_seperation_) / (2*np.pi*self.wheel_radius_) # pyright: ignore
-        right_side = self.bound_range(self.target.linear + 0.5*self.target.rotation*self.wheel_seperation_) / (2*np.pi*self.wheel_radius_) # pyright: ignore
+        left_side = (self.target.linear - 0.5*self.target.rotation*self.wheel_seperation_) / (2*np.pi*self.wheel_radius_) # pyright: ignore
+        right_side = (self.target.linear + 0.5*self.target.rotation*self.wheel_seperation_) / (2*np.pi*self.wheel_radius_) # pyright: ignore
         
         for m in self.mappings:
             m.apply_speed(left_side, right_side)
